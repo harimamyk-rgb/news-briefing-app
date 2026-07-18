@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm -rf .vercel/cache)",
+      "Bash(npx vercel *)"
+    ],
+    "additionalDirectories": [
+      "/Users/harim/Desktop/AI 바이브코딩/실습/news-briefing-app/.vercel/cache"
+    ]
+  }
+}
