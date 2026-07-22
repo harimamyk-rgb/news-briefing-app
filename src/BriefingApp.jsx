@@ -10,10 +10,54 @@ const CATEGORY_STYLE = {
 
 // ---------- API 호출 ----------
 
+// 브라우저 저장(localStorage)에 브리핑을 저장해둘 때 쓰는 이름표(key)
+const BRIEFING_CACHE_KEY = "briefing_cache_v1";
+
+// 오늘 날짜를 "2026-07-18" 형식의 문자열로 반환
+// → 저장된 캐시가 "오늘 것인지" 비교할 때 씀
+function getTodayKey() {
+  return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+}
+
 async function fetchBriefing() {
+  // [안전장치] API 재호출 방지 로직
+  // 브리핑은 하루에 한 번만 생성되는 게 설계 의도라서,
+  // 같은 날 새로고침/재방문할 때마다 API를 다시 부르면 비용만 새어나감.
+  // 그래서 브라우저에 "오늘 받아온 데이터"가 있으면 그걸 재사용하고,
+  // 없거나 날짜가 바뀌었을 때만 실제로 서버(api/briefing)를 호출함.
+  try {
+    // 1. 저장해둔 캐시가 있는지 확인
+    const cached = localStorage.getItem(BRIEFING_CACHE_KEY);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      // 2. 캐시가 "오늘 날짜"로 저장된 것이면 → API 호출 없이 바로 반환
+      if (parsed.cachedDate === getTodayKey()) {
+        return parsed.data;
+      }
+      // 날짜가 다르면(어제 캐시) → 아래로 내려가서 새로 호출
+    }
+  } catch {
+    // localStorage 읽기 자체가 실패해도(브라우저 설정 등) 앱이 멈추면 안 되니
+    // 에러는 무시하고 그냥 새로 API를 호출하는 흐름으로 넘어감
+  }
+
+  // 3. 캐시가 없거나 오늘 것이 아닐 때만 실제 API 호출 (여기서만 비용 발생)
   const res = await fetch("/api/briefing");
   if (!res.ok) throw new Error("브리핑을 불러오지 못했습니다.");
-  return res.json();
+  const data = await res.json();
+
+  // 4. 방금 받아온 결과를 "오늘 날짜"와 함께 저장
+  //    → 다음 새로고침부터는 위 1~2번 단계에서 걸려서 API를 다시 안 부름
+  try {
+    localStorage.setItem(
+      BRIEFING_CACHE_KEY,
+      JSON.stringify({ cachedDate: getTodayKey(), data })
+    );
+  } catch {
+    // 저장 실패해도(용량 초과 등) 화면 동작 자체에는 지장 없음, 조용히 넘어감
+  }
+
+  return data;
 }
 
 async function fetchDeepDive(searchQuery) {
