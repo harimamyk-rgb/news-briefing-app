@@ -5,6 +5,8 @@ const CATEGORY_EMOJI = {
   반도체: "💾",
 };
 
+const BRIEFING_SITE_URL = "https://news-briefing-app-xi.vercel.app/";
+
 function formatBriefingForSlack(briefing) {
   const { date, indices, issues } = briefing;
 
@@ -35,6 +37,10 @@ function formatBriefingForSlack(briefing) {
       {
         type: "section",
         text: { type: "mrkdwn", text: issueLines },
+      },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `<${BRIEFING_SITE_URL}|자세히 보기 →>` },
       },
     ],
   };
