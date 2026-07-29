@@ -139,7 +139,7 @@ function HomeScreen({ briefing, loading, error, onRetry, onSelectIssue }) {
       </div>
 
       <div className="flex gap-2 px-3 pt-3">
-        <IndexCard label="코스닥" value={briefing.indices.kosdaq.value} changePct={briefing.indices.kosdaq.changePct} />
+        <IndexCard label="코스피" value={briefing.indices.kospi.value} changePct={briefing.indices.kospi.changePct} />
         <IndexCard label="나스닥" value={briefing.indices.nasdaq.value} changePct={briefing.indices.nasdaq.changePct} />
       </div>
 

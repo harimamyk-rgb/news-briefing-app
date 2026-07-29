@@ -29,7 +29,7 @@ function formatBriefingForSlack(briefing) {
       {
         type: "section",
         fields: [
-          { type: "mrkdwn", text: indexLine("코스닥", indices.kosdaq) },
+          { type: "mrkdwn", text: indexLine("코스피", indices.kospi) },
           { type: "mrkdwn", text: indexLine("나스닥", indices.nasdaq) },
         ],
       },
