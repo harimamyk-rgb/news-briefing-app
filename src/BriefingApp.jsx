@@ -72,16 +72,133 @@ async function fetchDeepDive(searchQuery) {
 
 // ---------- UI 조각 ----------
 
-function IndexCard({ label, value, changePct }) {
+function IndexCard({ label, value, changePct, onClick }) {
   const isUp = changePct >= 0;
   return (
-    <div className="flex-1 rounded-xl bg-gray-50 px-3 py-2.5">
-      <p className="text-xs text-gray-500">{label}</p>
+    <button
+      onClick={onClick}
+      className="flex-1 rounded-xl bg-gray-50 px-3 py-2.5 text-left transition hover:bg-gray-100"
+    >
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-gray-500">{label}</p>
+        <span className="text-[10px] text-gray-400">추세 ›</span>
+      </div>
       <p className="mt-0.5 text-base font-medium text-gray-900">{value.toLocaleString()}</p>
       <div className={`mt-0.5 flex items-center gap-1 text-xs ${isUp ? "text-emerald-600" : "text-red-600"}`}>
         {isUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
         <span>{Math.abs(changePct)}%</span>
       </div>
+    </button>
+  );
+}
+
+// series 배열(종가들)로 미니 스파크라인 SVG용 path를 계산
+function buildSparklinePath(series, w = 300, h = 90, padX = 4, padY = 10) {
+  if (!series || series.length < 2) {
+    return { linePath: "", areaPath: "", endpoint: [0, 0] };
+  }
+  const min = Math.min(...series);
+  const max = Math.max(...series);
+  const range = max - min || 1;
+  const stepX = (w - padX * 2) / (series.length - 1);
+
+  const points = series.map((v, i) => {
+    const x = padX + i * stepX;
+    const y = padY + (1 - (v - min) / range) * (h - padY * 2);
+    return [x, y];
+  });
+
+  const linePath = points.map((p, i) => (i === 0 ? "M" : "L") + p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
+  const areaPath = `${linePath} L${points[points.length - 1][0].toFixed(1)},${h} L${points[0][0].toFixed(1)},${h} Z`;
+
+  return { linePath, areaPath, endpoint: points[points.length - 1] };
+}
+
+const PERIOD_LABEL = { "3d": "3일", "7d": "7일", "30d": "30일" };
+
+function TrendScreen({ indexLabel, trend, period, onSelectPeriod, onBack }) {
+  const data = trend?.[period];
+
+  return (
+    <div className="mx-auto w-full max-w-sm rounded-2xl border border-gray-200 bg-white">
+      <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-3.5">
+        <button onClick={onBack} className="text-gray-400 hover:text-gray-600" aria-label="뒤로가기">
+          <ChevronLeft size={18} />
+        </button>
+        <p className="text-sm font-medium text-gray-900">{indexLabel} 추세</p>
+      </div>
+
+      <div className="flex gap-1 px-3 pt-3">
+        {Object.keys(PERIOD_LABEL).map((p) => (
+          <button
+            key={p}
+            onClick={() => onSelectPeriod(p)}
+            className={`flex-1 rounded-lg border py-1.5 text-xs font-medium transition ${
+              p === period
+                ? "border-gray-900 bg-gray-900 text-white"
+                : "border-gray-200 text-gray-500 hover:border-gray-300"
+            }`}
+          >
+            {PERIOD_LABEL[p]}
+          </button>
+        ))}
+      </div>
+
+      {!trend && (
+        <div className="px-4 py-10 text-center text-sm text-gray-500">추세 데이터를 불러오지 못했어요.</div>
+      )}
+
+      {data && (
+        <>
+          {(() => {
+            const isUp = data.changePct >= 0;
+            const color = isUp ? "#059669" : "#dc2626";
+            const { linePath, areaPath, endpoint } = buildSparklinePath(data.series);
+            return (
+              <>
+                <div className="mx-3 mt-3 rounded-xl bg-gray-50 p-3">
+                  <svg viewBox="0 0 300 90" className="w-full">
+                    <path d={areaPath} fill={color} opacity={0.12} />
+                    <path d={linePath} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    <circle cx={endpoint[0]} cy={endpoint[1]} r={3.5} fill={color} stroke="#fff" strokeWidth={2} />
+                  </svg>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 px-3 pt-2">
+                  <div className="rounded-lg bg-gray-50 p-2">
+                    <p className="text-[10px] text-gray-400">구간 시작</p>
+                    <p className="mt-0.5 text-sm font-semibold text-gray-900">{data.startValue.toLocaleString()}</p>
+                  </div>
+                  <div className="rounded-lg bg-gray-50 p-2">
+                    <p className="text-[10px] text-gray-400">현재</p>
+                    <p className="mt-0.5 text-sm font-semibold text-gray-900">{data.endValue.toLocaleString()}</p>
+                  </div>
+                  <div className="rounded-lg bg-gray-50 p-2">
+                    <p className="text-[10px] text-gray-400">구간 등락률</p>
+                    <p className={`mt-0.5 text-sm font-semibold ${isUp ? "text-emerald-600" : "text-red-600"}`}>
+                      {isUp ? "▲" : "▼"} {Math.abs(data.changePct)}%
+                    </p>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
+
+          <div className="mx-3 my-3 rounded-xl border border-gray-100 p-3">
+            <p className="text-[10px] font-medium text-gray-400">핵심 변동 요인</p>
+            <p className="mt-1.5 text-xs leading-relaxed text-gray-900">{data.summary}</p>
+            {data.factors?.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {data.factors.map((f) => (
+                  <span key={f} className="rounded-md border border-gray-100 bg-gray-50 px-2 py-1 text-[10px] text-gray-500">
+                    {f}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -109,7 +226,7 @@ function CenterState({ children }) {
   );
 }
 
-function HomeScreen({ briefing, loading, error, onRetry, onSelectIssue }) {
+function HomeScreen({ briefing, loading, error, onRetry, onSelectIssue, onSelectIndex }) {
   if (loading) {
     return (
       <CenterState>
@@ -139,8 +256,18 @@ function HomeScreen({ briefing, loading, error, onRetry, onSelectIssue }) {
       </div>
 
       <div className="flex gap-2 px-3 pt-3">
-        <IndexCard label="코스피" value={briefing.indices.kospi.value} changePct={briefing.indices.kospi.changePct} />
-        <IndexCard label="나스닥" value={briefing.indices.nasdaq.value} changePct={briefing.indices.nasdaq.changePct} />
+        <IndexCard
+          label="코스피"
+          value={briefing.indices.kospi.value}
+          changePct={briefing.indices.kospi.changePct}
+          onClick={() => onSelectIndex("kospi")}
+        />
+        <IndexCard
+          label="나스닥"
+          value={briefing.indices.nasdaq.value}
+          changePct={briefing.indices.nasdaq.changePct}
+          onClick={() => onSelectIndex("nasdaq")}
+        />
       </div>
 
       <div className="flex flex-col gap-2 p-3">
@@ -225,6 +352,9 @@ export default function BriefingApp() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState(null);
 
+  const [selectedIndex, setSelectedIndex] = useState(null); // "kospi" | "nasdaq" | null
+  const [trendPeriod, setTrendPeriod] = useState("7d");
+
   const loadBriefing = () => {
     setBriefingLoading(true);
     setBriefingError(null);
@@ -251,7 +381,15 @@ export default function BriefingApp() {
 
   return (
     <div className="min-h-screen bg-gray-100 px-4 py-8">
-      {selected ? (
+      {selectedIndex ? (
+        <TrendScreen
+          indexLabel={selectedIndex === "kospi" ? "코스피" : "나스닥"}
+          trend={briefing?.trends?.[selectedIndex] ?? null}
+          period={trendPeriod}
+          onSelectPeriod={setTrendPeriod}
+          onBack={() => setSelectedIndex(null)}
+        />
+      ) : selected ? (
         <DetailScreen
           issueTitle={selected.title}
           detail={detail}
@@ -267,6 +405,10 @@ export default function BriefingApp() {
           error={briefingError}
           onRetry={loadBriefing}
           onSelectIssue={(issue) => loadDeepDive(issue.title, issue.searchQuery)}
+          onSelectIndex={(key) => {
+            setSelectedIndex(key);
+            setTrendPeriod("7d");
+          }}
         />
       )}
     </div>

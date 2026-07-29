@@ -36,3 +36,39 @@ export async function fetchIndices() {
   ]);
   return { kospi, nasdaq };
 }
+
+// 추세(3/7/30일) 기능용: 특정 심볼의 일별 종가 배열을 가져온다.
+export async function fetchSeries(symbol, range = "3mo") {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=${range}`;
+  const response = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
+
+  if (!response.ok) {
+    throw new Error(`yahoo finance error for ${symbol}: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const closes = (data.chart?.result?.[0]?.indicators?.quote?.[0]?.close ?? []).filter(
+    (c) => typeof c === "number"
+  );
+
+  if (closes.length < 2) {
+    throw new Error(`insufficient market data for ${symbol}`);
+  }
+
+  return closes;
+}
+
+// closes 배열에서 최근 값 대비 tradingDaysAgo 거래일 전 값의 등락률을 계산.
+export function periodReturn(closes, tradingDaysAgo) {
+  const endIdx = closes.length - 1;
+  const startIdx = Math.max(0, endIdx - tradingDaysAgo);
+  const startValue = closes[startIdx];
+  const endValue = closes[endIdx];
+  const changePct = ((endValue - startValue) / startValue) * 100;
+
+  return {
+    startValue: Number(startValue.toFixed(2)),
+    endValue: Number(endValue.toFixed(2)),
+    changePct: Number(changePct.toFixed(2)),
+  };
+}
